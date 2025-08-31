@@ -1,0 +1,27 @@
+# Build directories
+build/
+tests/build/
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+
+# Test executables and artifacts
+test_dht11
+*.gcno
+*.gcda
+*.gcov
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db

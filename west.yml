@@ -1,0 +1,9 @@
+manifest:
+  remotes:
+    - name: fozi
+      url-base: https://github.com/Fo-Zi
+  projects:
+    - name: nexus-hal-interface
+      remote: fozi
+      revision: v0.5.0
+      path: hal-interface

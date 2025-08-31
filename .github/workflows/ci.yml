@@ -1,0 +1,52 @@
+name: DHT11 Driver CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    container: ghcr.io/fo-zi/nexus-ci-base:latest
+
+    steps:
+      - name: Checkout DHT11 driver repository
+        uses: actions/checkout@v4
+        with:
+          path: dht11-driver
+
+      - name: Initialize West workspace
+        run: |
+          echo "=== Before west init ==="
+          pwd
+          ls -la
+          cd dht11-driver
+          echo "=== Inside dht11-driver ==="
+          pwd
+          ls -la
+          west init --local .
+          west update
+          echo "=== After west update ==="
+          cd ..
+          pwd
+          ls -la
+
+      - name: Build and run tests
+        run: |
+          echo "=== Before building ==="
+          pwd
+          ls -la
+          cd dht11-driver/tests
+          echo "=== Inside tests directory ==="
+          pwd
+          ls -la
+          echo "=== Looking for hal-interface ==="
+          ls -la ../hal-interface/ || echo "hal-interface not found at ../hal-interface/"
+          ls -la ../../hal-interface/ || echo "hal-interface not found at ../../hal-interface/"
+          cmake -B build
+          cmake --build build
+          ctest --test-dir build --output-on-failure --verbose
