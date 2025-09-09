@@ -1,3 +1,7 @@
+![GitHub License](https://img.shields.io/github/license/Fo-Zi/nexus-dht11)
+![GitHub Tag](https://img.shields.io/github/v/release/Fo-Zi/nexus-dht11)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/Fo-Zi/nexus-dht11/ci.yml)
+![C standard](https://img.shields.io/badge/C-99-blue.svg)
 # DHT11 Driver
 
 A C driver for the DHT11 temperature and humidity sensor using the NHAL pin interface.
