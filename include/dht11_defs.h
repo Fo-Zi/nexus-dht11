@@ -19,6 +19,8 @@
 #define DHT11_BIT_0_HIGH_US             26      /**< Bit '0' high duration in microseconds */
 #define DHT11_BIT_1_HIGH_US             70      /**< Bit '1' high duration in microseconds */
 #define DHT11_TIMEOUT_US                1000    /**< General timeout in microseconds */
+#define DHT11_RESPONSE_TIMEOUT_US       200     /**< Timeout for DHT11 response signals in microseconds */
+#define DHT11_BIT_TIMEOUT_US            200     /**< Timeout for bit transmission in microseconds */
 #define DHT11_DATA_BITS                 40      /**< Total number of data bits */
 #define DHT11_MIN_SAMPLING_PERIOD_MS    2000    /**< Minimum time between readings in milliseconds */
 
