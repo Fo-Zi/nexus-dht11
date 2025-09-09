@@ -1,6 +1,7 @@
 # Build directories
 build/
 tests/build/
+tests/build-coverage/
 
 # CMake generated files
 CMakeCache.txt

@@ -2,9 +2,9 @@ name: DHT11 Driver CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -50,3 +50,36 @@ jobs:
           cmake -B build
           cmake --build build
           ctest --test-dir build --output-on-failure --verbose
+
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    container: ghcr.io/fo-zi/nexus-ci-base:latest
+
+    steps:
+      - name: Checkout DHT11 driver repository
+        uses: actions/checkout@v4
+        with:
+          path: dht11-driver
+
+      - name: Initialize West workspace
+        run: |
+          cd dht11-driver
+          west init --local .
+          west update
+
+      - name: Build and run coverage
+        run: |
+          cd dht11-driver/tests
+          cmake -B build-coverage -DENABLE_COVERAGE=ON
+          cmake --build build-coverage
+          cd build-coverage
+          make coverage
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./dht11-driver/tests/build-coverage/coverage/coverage.info
+          flags: unittests
+          name: dht11-coverage
+          fail_ci_if_error: true

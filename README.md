@@ -1,5 +1,8 @@
 # DHT11 Driver
 
+[![CI](https://github.com/fo-zi/nexus-dht11/workflows/DHT11%20Driver%20CI/badge.svg)](https://github.com/fo-zi/nexus-dht11/actions)
+[![codecov](https://codecov.io/gh/fo-zi/nexus-dht11/branch/main/graph/badge.svg)](https://codecov.io/gh/fo-zi/nexus-dht11)
+
 A C driver for the DHT11 temperature and humidity sensor using the NHAL pin interface.
 
 ## Overview
@@ -47,3 +50,47 @@ See the header file for detailed function documentation.
 
 - NHAL pin interface
 - Standard C library
+
+## Development
+
+### Testing
+
+Run the unit tests:
+
+```bash
+make run_unit_tests
+```
+
+### Code Coverage
+
+Generate local coverage report:
+
+```bash
+make run_coverage
+```
+
+This will generate an HTML coverage report at `tests/build-coverage/coverage/html/index.html`.
+
+#### Requirements for Coverage
+- `lcov` and `genhtml` tools
+- GCC compiler with coverage support
+
+Install on Ubuntu/Debian:
+```bash
+sudo apt install lcov
+```
+
+### Available Makefile Targets
+
+- `make config_tests` - Configure CMake build for tests
+- `make run_unit_tests` - Build and run unit tests
+- `make clean_unit_tests` - Clean test build directory
+- `make config_coverage` - Configure CMake build with coverage enabled
+- `make run_coverage` - Build, run tests, and generate coverage report
+- `make clean_coverage` - Clean coverage build directory
+- `make ci_local` - Run full CI pipeline locally
+- `make update_deps` - Update West dependencies
+
+### Coverage Reports
+
+Coverage reports are automatically generated in CI and uploaded to [Codecov](https://codecov.io/gh/fo-zi/nexus-dht11). The current coverage target is 80%.
