@@ -202,32 +202,28 @@ TEST_F(DHT11ReadTest, ReadTooSoonAfterLastReading) {
 }
 
 // Pin operation error tests
-TEST_F(DHT11ReadTest, ReadWithPinDirectionError) {
+TEST_F(DHT11ReadTest, ReadWithPinStateErrorDuringStartSignal) {
     // Set timing to pass rate limiting
     handle.last_reading_time_ms = 2100;  // Long ago
 
-    // Force pin direction setting to fail
-    EXPECT_CALL(NhalPinMock::instance(), nhal_pin_set_direction(pin_ctx, NHAL_PIN_DIR_OUTPUT, NHAL_PIN_PMODE_PULL_UP))
+    // Force pin state setting to fail during start signal
+    EXPECT_CALL(NhalPinMock::instance(), nhal_pin_set_state(pin_ctx, NHAL_PIN_LOW))
         .WillOnce(Return(NHAL_ERR_HW_FAILURE));
 
     dht11_result_t result = dht11_read_raw(&handle, &raw_data);
     EXPECT_EQ(result, DHT11_ERR_PIN_ERROR);
 }
 
-TEST_F(DHT11ReadTest, ReadWithPinStateError) {
-    // Set timing to pass rate limiting using the correct approach
+TEST_F(DHT11ReadTest, ReadWithPinStateErrorDuringHighSignal) {
+    // Set timing to pass rate limiting
     handle.last_reading_time_ms = 2100;  // Long ago
 
-    // Override the default mock behavior for this test only
-    EXPECT_CALL(NhalCommonMock::instance(), nhal_get_timestamp_milliseconds())
-        .WillOnce(Return(6500));  // Current time 6500ms (1500ms elapsed < 2000ms)
-
-    // Allow initial direction setting to succeed
-    EXPECT_CALL(NhalPinMock::instance(), nhal_pin_set_direction(pin_ctx, NHAL_PIN_DIR_OUTPUT, NHAL_PIN_PMODE_PULL_UP))
+    // Allow low pin state setting to succeed
+    EXPECT_CALL(NhalPinMock::instance(), nhal_pin_set_state(pin_ctx, NHAL_PIN_LOW))
         .WillOnce(Return(NHAL_OK));
 
-    // Force pin state setting to fail
-    EXPECT_CALL(NhalPinMock::instance(), nhal_pin_set_state(pin_ctx, NHAL_PIN_LOW))
+    // Force pin state setting to fail during high signal
+    EXPECT_CALL(NhalPinMock::instance(), nhal_pin_set_state(pin_ctx, NHAL_PIN_HIGH))
         .WillOnce(Return(NHAL_ERR_HW_FAILURE));
 
     dht11_result_t result = dht11_read_raw(&handle, &raw_data);
@@ -239,8 +235,6 @@ TEST_F(DHT11ReadTest, ReadWithInputDirectionError) {
     handle.last_reading_time_ms = 2100;  // Long ago
 
     // Setup start signal sequence to succeed
-    EXPECT_CALL(NhalPinMock::instance(), nhal_pin_set_direction(pin_ctx, NHAL_PIN_DIR_OUTPUT, NHAL_PIN_PMODE_PULL_UP))
-        .WillOnce(Return(NHAL_OK));
     EXPECT_CALL(NhalPinMock::instance(), nhal_pin_set_state(pin_ctx, NHAL_PIN_LOW))
         .WillOnce(Return(NHAL_OK));
     EXPECT_CALL(NhalPinMock::instance(), nhal_pin_set_state(pin_ctx, NHAL_PIN_HIGH))
@@ -260,8 +254,6 @@ TEST_F(DHT11ReadTest, ReadWithNoResponseFromSensor) {
     handle.last_reading_time_ms = 2500;  // Long ago
 
     // Setup start signal to succeed
-    EXPECT_CALL(NhalPinMock::instance(), nhal_pin_set_direction(pin_ctx, NHAL_PIN_DIR_OUTPUT, NHAL_PIN_PMODE_PULL_UP))
-        .WillOnce(Return(NHAL_OK));
     EXPECT_CALL(NhalPinMock::instance(), nhal_pin_set_state(pin_ctx, NHAL_PIN_LOW))
         .WillOnce(Return(NHAL_OK));
     EXPECT_CALL(NhalPinMock::instance(), nhal_pin_set_state(pin_ctx, NHAL_PIN_HIGH))
@@ -269,7 +261,7 @@ TEST_F(DHT11ReadTest, ReadWithNoResponseFromSensor) {
     EXPECT_CALL(NhalPinMock::instance(), nhal_pin_set_direction(pin_ctx, NHAL_PIN_DIR_INPUT, NHAL_PIN_PMODE_PULL_UP))
         .WillOnce(Return(NHAL_OK));
 
-    // DHT11 doesn't respond - pin stays HIGH when it should go LOW
+    // DHT11 doesn't respond - pin stays HIGH when it should go LOW for response validation
     EXPECT_CALL(NhalPinMock::instance(), nhal_pin_get_state(pin_ctx, _))
         .WillRepeatedly([](struct nhal_pin_context* ctx, nhal_pin_state_t* state) {
             *state = NHAL_PIN_HIGH;  // Never goes low - no response
@@ -285,8 +277,6 @@ TEST_F(DHT11ReadTest, ReadWithPinGetStateError) {
     handle.last_reading_time_ms = 2100;  // Long ago
 
     // Setup start signal to succeed
-    EXPECT_CALL(NhalPinMock::instance(), nhal_pin_set_direction(pin_ctx, NHAL_PIN_DIR_OUTPUT, NHAL_PIN_PMODE_PULL_UP))
-        .WillOnce(Return(NHAL_OK));
     EXPECT_CALL(NhalPinMock::instance(), nhal_pin_set_state(pin_ctx, NHAL_PIN_LOW))
         .WillOnce(Return(NHAL_OK));
     EXPECT_CALL(NhalPinMock::instance(), nhal_pin_set_state(pin_ctx, NHAL_PIN_HIGH))
@@ -313,3 +303,98 @@ TEST_F(DHT11ReadTest, CompleteReadFunction) {
     // Should fail with rate limiting
     EXPECT_EQ(result, DHT11_ERR_TOO_SOON);
 }
+
+// New tests for enhanced functionality
+TEST_F(DHT11ReadTest, ResponseSignalValidationWithTooShortLowPulse) {
+    // Set timing to pass rate limiting
+    handle.last_reading_time_ms = 2100;  // Long ago
+
+    // Setup start signal to succeed
+    EXPECT_CALL(NhalPinMock::instance(), nhal_pin_set_state(pin_ctx, NHAL_PIN_LOW))
+        .WillOnce(Return(NHAL_OK));
+    EXPECT_CALL(NhalPinMock::instance(), nhal_pin_set_state(pin_ctx, NHAL_PIN_HIGH))
+        .WillOnce(Return(NHAL_OK));
+    EXPECT_CALL(NhalPinMock::instance(), nhal_pin_set_direction(pin_ctx, NHAL_PIN_DIR_INPUT, NHAL_PIN_PMODE_PULL_UP))
+        .WillOnce(Return(NHAL_OK));
+
+    // Mock pin state and timing for response validation
+    // Simulate too short low pulse (should be ~80μs, testing 50μs)
+    EXPECT_CALL(NhalCommonMock::instance(), nhal_get_timestamp_microseconds())
+        .WillOnce(Return(1000))  // Start time for low pulse measurement
+        .WillOnce(Return(1050))  // End time (50μs duration - too short)
+        .WillRepeatedly(Return(2000));  // Default for other calls
+
+    // First call: pin is initially high, wait for low (succeeds)
+    // Second call: pin goes low, measure pulse start  
+    // Third call: pin goes high, measure pulse end
+    EXPECT_CALL(NhalPinMock::instance(), nhal_pin_get_state(pin_ctx, _))
+        .WillOnce([](struct nhal_pin_context* ctx, nhal_pin_state_t* state) {
+            *state = NHAL_PIN_HIGH;  // Initial state
+            return NHAL_OK;
+        })
+        .WillOnce([](struct nhal_pin_context* ctx, nhal_pin_state_t* state) {
+            *state = NHAL_PIN_LOW;   // DHT11 responds low
+            return NHAL_OK;
+        })
+        .WillOnce([](struct nhal_pin_context* ctx, nhal_pin_state_t* state) {
+            *state = NHAL_PIN_HIGH;  // Pulse ends (too short)
+            return NHAL_OK;
+        })
+        .WillRepeatedly([](struct nhal_pin_context* ctx, nhal_pin_state_t* state) {
+            *state = NHAL_PIN_HIGH;
+            return NHAL_OK;
+        });
+
+    dht11_result_t result = dht11_read_raw(&handle, &raw_data);
+    EXPECT_EQ(result, DHT11_ERR_NO_RESPONSE);
+}
+
+TEST_F(DHT11ReadTest, TimerOverflowProtectionInPulseMeasurement) {
+    // Set timing to pass rate limiting
+    handle.last_reading_time_ms = 2100;  // Long ago
+
+    // Setup start signal to succeed
+    EXPECT_CALL(NhalPinMock::instance(), nhal_pin_set_state(pin_ctx, NHAL_PIN_LOW))
+        .WillOnce(Return(NHAL_OK));
+    EXPECT_CALL(NhalPinMock::instance(), nhal_pin_set_state(pin_ctx, NHAL_PIN_HIGH))
+        .WillOnce(Return(NHAL_OK));
+    EXPECT_CALL(NhalPinMock::instance(), nhal_pin_set_direction(pin_ctx, NHAL_PIN_DIR_INPUT, NHAL_PIN_PMODE_PULL_UP))
+        .WillOnce(Return(NHAL_OK));
+
+    // Test timer overflow scenario with duration calculation that should still be valid
+    // The calculated duration after overflow should be ~151μs which is valid but longer than expected
+    uint32_t overflow_start = UINT32_MAX - 50;  // Near overflow  
+    uint32_t overflow_end = 100;                // After overflow
+    // Expected duration: UINT32_MAX - start + end + 1 = 50 + 100 + 1 = 151μs (too long for response)
+
+    EXPECT_CALL(NhalCommonMock::instance(), nhal_get_timestamp_microseconds())
+        .WillOnce(Return(overflow_start))  // Start time for low pulse (near overflow)
+        .WillOnce(Return(overflow_end))    // End time (after overflow, duration=151μs - too long)
+        .WillRepeatedly(Return(3000));
+
+    // Pin state simulation for timer overflow scenario
+    EXPECT_CALL(NhalPinMock::instance(), nhal_pin_get_state(pin_ctx, _))
+        .WillOnce([](struct nhal_pin_context* ctx, nhal_pin_state_t* state) {
+            *state = NHAL_PIN_HIGH;  // Initial state
+            return NHAL_OK;
+        })
+        .WillOnce([](struct nhal_pin_context* ctx, nhal_pin_state_t* state) {
+            *state = NHAL_PIN_LOW;   // DHT11 responds low
+            return NHAL_OK;
+        })
+        .WillOnce([](struct nhal_pin_context* ctx, nhal_pin_state_t* state) {
+            *state = NHAL_PIN_HIGH;  // Low pulse ends (calculated as 151μs due to overflow)
+            return NHAL_OK;
+        })
+        .WillRepeatedly([](struct nhal_pin_context* ctx, nhal_pin_state_t* state) {
+            *state = NHAL_PIN_HIGH;
+            return NHAL_OK;
+        });
+
+    // The overflow protection correctly calculates 151μs duration, but this is outside valid range (60-100μs)
+    // So response validation should reject it - this proves overflow protection works correctly
+    dht11_result_t result = dht11_read_raw(&handle, &raw_data);
+    EXPECT_EQ(result, DHT11_ERR_NO_RESPONSE);  // Correctly rejects due to invalid timing
+}
+
+

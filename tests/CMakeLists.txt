@@ -5,6 +5,16 @@ project(dht11_tests)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Coverage option
+option(ENABLE_COVERAGE "Enable coverage reporting" OFF)
+
+if(ENABLE_COVERAGE)
+    message(STATUS "Building with code coverage enabled")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} --coverage -fprofile-arcs -ftest-coverage")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage -fprofile-arcs -ftest-coverage")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage")
+endif()
+
 # HAL interface path - easily configurable
 set(HAL_INTERFACE_PATH "../../hal-interface" CACHE STRING "Path to hal-interface directory")
 
@@ -67,3 +77,40 @@ target_include_directories(test_dht11
 # Enable testing
 enable_testing()
 add_test(NAME DHT11Tests COMMAND test_dht11)
+
+# Coverage targets
+if(ENABLE_COVERAGE)
+    find_program(LCOV_PATH lcov)
+    find_program(GENHTML_PATH genhtml)
+
+    if(LCOV_PATH AND GENHTML_PATH)
+        message(STATUS "Found lcov and genhtml, coverage targets available")
+
+        # Setup coverage directory
+        set(COVERAGE_DIR ${CMAKE_BINARY_DIR}/coverage)
+
+        # Add a single coverage target that does everything in sequence
+        add_custom_target(coverage
+            # Create coverage directory
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${COVERAGE_DIR}
+            # Clean previous coverage data
+            COMMAND ${LCOV_PATH} --directory . --zerocounters --quiet || true
+            # Run tests
+            COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+            # Capture coverage data (ignore C++ template issues)
+            COMMAND ${LCOV_PATH} --directory . --capture --output-file ${COVERAGE_DIR}/coverage.info --quiet --ignore-errors mismatch,gcov
+            # Filter out system and test files
+            COMMAND ${LCOV_PATH} --remove ${COVERAGE_DIR}/coverage.info '/usr/*' '*/tests/*' '*/gtest/*' '*/gmock/*' --output-file ${COVERAGE_DIR}/coverage.info --quiet --ignore-errors unused
+            # Generate HTML report
+            COMMAND ${GENHTML_PATH} --demangle-cpp -o ${COVERAGE_DIR}/html ${COVERAGE_DIR}/coverage.info --quiet
+            # Show summary
+            COMMAND ${LCOV_PATH} --list ${COVERAGE_DIR}/coverage.info
+            WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+            DEPENDS test_dht11
+            COMMENT "Generating complete coverage report..."
+        )
+
+    else()
+        message(WARNING "lcov or genhtml not found, coverage targets not available")
+    endif()
+endif()
