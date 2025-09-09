@@ -1,10 +1,12 @@
-![GitHub License](https://img.shields.io/github/license/Fo-Zi/nexus-dht11)
-![GitHub Tag](https://img.shields.io/github/v/release/Fo-Zi/nexus-dht11)
+![GitHub License](https://img.shields.io/github/license/Fo-Zi/nexus-dht11?color=lightgrey)
+![GitHub Release](https://img.shields.io/github/v/release/Fo-Zi/nexus-dht11?color=brightgreen)
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/Fo-Zi/nexus-dht11/ci.yml)
-![C standard](https://img.shields.io/badge/C-99-blue.svg)
+![C standard](https://img.shields.io/badge/C-99-blue)
+[![Dependency](https://img.shields.io/badge/depends%20on-nexus--hal--interface%20v0.6.0-orange)](https://github.com/Fo-Zi/nexus-hal-interface/tree/v0.6.0)
+
 # DHT11 Driver
 
-A C driver for the DHT11 temperature and humidity sensor using the NHAL pin interface.
+A C driver for the DHT11 temperature and humidity sensor, part of the [Nexus Ecosystem](https://github.com/Fo-Zi/nexus-embedded-ecosystem)
 
 ## Overview
 
