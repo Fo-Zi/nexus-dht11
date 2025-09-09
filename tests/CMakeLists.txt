@@ -78,7 +78,6 @@ target_include_directories(test_dht11
 enable_testing()
 add_test(NAME DHT11Tests COMMAND test_dht11)
 
-# Coverage targets
 if(ENABLE_COVERAGE)
     find_program(LCOV_PATH lcov)
     find_program(GENHTML_PATH genhtml)
@@ -88,18 +87,22 @@ if(ENABLE_COVERAGE)
 
         # Setup coverage directory
         set(COVERAGE_DIR ${CMAKE_BINARY_DIR}/coverage)
-    
-        # Check if lcov supports 'mismatch' in --ignore-errors
+
+        # Detect if lcov supports --ignore-errors
         execute_process(
             COMMAND ${LCOV_PATH} --help
             OUTPUT_VARIABLE LCOV_HELP
         )
-        if("${LCOV_HELP}" MATCHES "mismatch")
-            set(LCOV_IGNORE "--ignore-errors mismatch,gcov")
-        else()
-            set(LCOV_IGNORE "--ignore-errors gcov")
+
+        set(LCOV_IGNORE "")
+        if("${LCOV_HELP}" MATCHES "ignore-errors")
+            if("${LCOV_HELP}" MATCHES "mismatch")
+                set(LCOV_IGNORE "--ignore-errors mismatch,gcov")
+            else()
+                set(LCOV_IGNORE "--ignore-errors gcov")
+            endif()
         endif()
-    
+
         add_custom_target(coverage
             # Create coverage directory
             COMMAND ${CMAKE_COMMAND} -E make_directory ${COVERAGE_DIR}
