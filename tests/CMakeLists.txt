@@ -95,13 +95,6 @@ if(ENABLE_COVERAGE)
         )
 
         set(LCOV_IGNORE "")
-        if("${LCOV_HELP}" MATCHES "ignore-errors")
-            if("${LCOV_HELP}" MATCHES "mismatch")
-                set(LCOV_IGNORE "--ignore-errors mismatch,gcov")
-            else()
-                set(LCOV_IGNORE "--ignore-errors gcov")
-            endif()
-        endif()
 
         add_custom_target(coverage
             # Create coverage directory
@@ -113,7 +106,11 @@ if(ENABLE_COVERAGE)
             # Capture coverage data
             COMMAND ${LCOV_PATH} --directory . --capture --output-file ${COVERAGE_DIR}/coverage.info --quiet ${LCOV_IGNORE}
             # Filter out system and test files
-            COMMAND ${LCOV_PATH} --remove ${COVERAGE_DIR}/coverage.info '/usr/*' '*/tests/*' '*/gtest/*' '*/gmock/*' --output-file ${COVERAGE_DIR}/coverage.info --quiet --ignore-errors unused
+            # COMMAND ${LCOV_PATH} --remove ${COVERAGE_DIR}/coverage.info '/usr/*' '*/tests/*' '*/gtest/*' '*/gmock/*' --output-file ${COVERAGE_DIR}/coverage.info --quiet --ignore-errors unused
+            COMMAND ${LCOV_PATH} 
+                --remove ${COVERAGE_DIR}/coverage.info '/usr/*' '*/tests/*' '*/gtest/*' '*/gmock/*' 
+                --output-file ${COVERAGE_DIR}/coverage.info 
+                --quiet
             # Generate HTML report
             COMMAND ${GENHTML_PATH} --demangle-cpp -o ${COVERAGE_DIR}/html ${COVERAGE_DIR}/coverage.info --quiet
             # Show summary
