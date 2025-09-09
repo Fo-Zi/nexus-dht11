@@ -1,9 +1,14 @@
-# DHT11 Driver
-
+![GitHub License](https://img.shields.io/github/license/Fo-Zi/nexus-dht11?color=lightgrey)
+![GitHub Release](https://img.shields.io/github/v/release/Fo-Zi/nexus-dht11?color=brightgreen)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/Fo-Zi/nexus-dht11/ci.yml)
 [![CI](https://github.com/fo-zi/nexus-dht11/workflows/DHT11%20Driver%20CI/badge.svg)](https://github.com/fo-zi/nexus-dht11/actions)
 [![codecov](https://codecov.io/gh/fo-zi/nexus-dht11/branch/main/graph/badge.svg)](https://codecov.io/gh/fo-zi/nexus-dht11)
+[![Dependency](https://img.shields.io/badge/depends%20on-nexus--hal--interface%20v0.6.0-orange)](https://github.com/Fo-Zi/nexus-hal-interface/tree/v0.6.0)
+
+# DHT11 Driver
 
 A C driver for the DHT11 temperature and humidity sensor using the NHAL pin interface.
+A C driver for the DHT11 temperature and humidity sensor, part of the [Nexus Ecosystem](https://github.com/Fo-Zi/nexus-embedded-ecosystem)
 
 ## Overview
 
@@ -13,7 +18,7 @@ This driver provides temperature and humidity readings from the DHT11 sensor usi
 
 - **Device**: DHT11 Temperature & Humidity Sensor
 - **Interface**: Single-wire digital protocol
-- **Measurement Range**: 
+- **Measurement Range**:
   - Humidity: 20-90% RH
   - Temperature: 0-50°C
 - **Accuracy**: ±5% RH, ±2°C
@@ -50,6 +55,7 @@ See the header file for detailed function documentation.
 
 - NHAL pin interface
 - Standard C library
+<<<<<<< HEAD
 
 ## Development
 
@@ -94,3 +100,5 @@ sudo apt install lcov
 ### Coverage Reports
 
 Coverage reports are automatically generated in CI and uploaded to [Codecov](https://codecov.io/gh/fo-zi/nexus-dht11). The current coverage target is 80%.
+=======
+>>>>>>> c77c1fbb500e1b92799b4b7c0d65e646fb3f1c82
