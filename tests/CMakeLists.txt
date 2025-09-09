@@ -88,8 +88,18 @@ if(ENABLE_COVERAGE)
 
         # Setup coverage directory
         set(COVERAGE_DIR ${CMAKE_BINARY_DIR}/coverage)
-
-        # Add a single coverage target that does everything in sequence
+    
+        # Check if lcov supports 'mismatch' in --ignore-errors
+        execute_process(
+            COMMAND ${LCOV_PATH} --help
+            OUTPUT_VARIABLE LCOV_HELP
+        )
+        if("${LCOV_HELP}" MATCHES "mismatch")
+            set(LCOV_IGNORE "--ignore-errors mismatch,gcov")
+        else()
+            set(LCOV_IGNORE "--ignore-errors gcov")
+        endif()
+    
         add_custom_target(coverage
             # Create coverage directory
             COMMAND ${CMAKE_COMMAND} -E make_directory ${COVERAGE_DIR}
@@ -97,8 +107,8 @@ if(ENABLE_COVERAGE)
             COMMAND ${LCOV_PATH} --directory . --zerocounters --quiet || true
             # Run tests
             COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-            # Capture coverage data (ignore C++ template issues)
-            COMMAND ${LCOV_PATH} --directory . --capture --output-file ${COVERAGE_DIR}/coverage.info --quiet --ignore-errors mismatch,gcov
+            # Capture coverage data
+            COMMAND ${LCOV_PATH} --directory . --capture --output-file ${COVERAGE_DIR}/coverage.info --quiet ${LCOV_IGNORE}
             # Filter out system and test files
             COMMAND ${LCOV_PATH} --remove ${COVERAGE_DIR}/coverage.info '/usr/*' '*/tests/*' '*/gtest/*' '*/gmock/*' --output-file ${COVERAGE_DIR}/coverage.info --quiet --ignore-errors unused
             # Generate HTML report
