@@ -148,11 +148,17 @@ dht11_result_t dht11_read_raw(dht11_handle_t *handle, dht11_raw_data_t *raw_data
     }
 
     // Pull low for 18ms
-    nhal_pin_set_state(handle->pin_ctx, NHAL_PIN_LOW);
+    pin_result = nhal_pin_set_state(handle->pin_ctx, NHAL_PIN_LOW);
+    if (pin_result != NHAL_OK) {
+        return DHT11_ERR_PIN_ERROR;
+    }
     nhal_delay_milliseconds(DHT11_START_SIGNAL_MS);
 
     // Pull high for 20-40us
-    nhal_pin_set_state(handle->pin_ctx, NHAL_PIN_HIGH);
+    pin_result = nhal_pin_set_state(handle->pin_ctx, NHAL_PIN_HIGH);
+    if (pin_result != NHAL_OK) {
+        return DHT11_ERR_PIN_ERROR;
+    }
     nhal_delay_microseconds(DHT11_START_SIGNAL_HIGH_US);
 
     // Step 2: Switch to input mode and wait for DHT11 response

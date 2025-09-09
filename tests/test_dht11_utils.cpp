@@ -1,27 +1,87 @@
+#include <cstdint>
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include "nhal_common.h"
 #include "nhal_pin_mock.hpp"
+#include "nhal_common_mock.hpp"
 
 extern "C" {
     #include "dht11.h"
 }
 
+using ::testing::_;
+using ::testing::Return;
+using ::testing::InSequence;
+using ::testing::StrictMock;
+using ::testing::Sequence;
+using ::testing::AtLeast;
+
 class DHT11UtilsTest : public ::testing::Test {
 protected:
     void SetUp() override {
         memset(&handle, 0, sizeof(handle));
-        memset(&pin_ctx, 0, sizeof(pin_ctx));
         memset(&raw_data, 0, sizeof(raw_data));
         memset(&reading, 0, sizeof(reading));
-        
+
+        mock_time_ms = 0;
+        EXPECT_CALL(NhalCommonMock::instance(), nhal_get_timestamp_milliseconds())
+            .Times(testing::AnyNumber())
+            .WillRepeatedly([this](){
+                mock_time_ms += 20;  // Increment by 20ms each call (realistic for DHT11 operation)
+                return mock_time_ms;
+            });
+        mock_time_us = 0;
+        EXPECT_CALL(NhalCommonMock::instance(), nhal_get_timestamp_microseconds())
+            .Times(testing::AnyNumber())
+            .WillRepeatedly([this](){
+                mock_time_us += 20;  // Increment by 20ms each call (realistic for DHT11 operation)
+                return mock_time_us;
+            });
+
+        // Set up default timing behaviors
+        EXPECT_CALL(NhalCommonMock::instance(), nhal_delay_microseconds(testing::_))
+            .Times(testing::AnyNumber())
+            .WillRepeatedly([this](uint32_t microseconds){
+                mock_time_us += microseconds;
+            });
+
+        EXPECT_CALL(NhalCommonMock::instance(), nhal_delay_milliseconds(testing::_))
+            .Times(testing::AnyNumber())
+            .WillRepeatedly([this](uint32_t milliseconds){
+                mock_time_us += milliseconds * 1000;
+            });
+
+        // Use EXPECT_CALL with AnyNumber() to suppress warnings
+        EXPECT_CALL(NhalPinMock::instance(), nhal_pin_set_direction(testing::_, testing::_, testing::_))
+            .Times(testing::AnyNumber())
+            .WillRepeatedly([this](struct nhal_pin_context * ctx, nhal_pin_dir_t direction, nhal_pin_pull_mode_t pull_mode){
+                return NHAL_OK;
+            });
+
+        EXPECT_CALL(NhalPinMock::instance(), nhal_pin_set_state(testing::_, testing::_))
+            .Times(testing::AnyNumber())
+            .WillRepeatedly([this](struct nhal_pin_context * ctx, nhal_pin_state_t state){
+                return NHAL_OK;
+            });
+
+        EXPECT_CALL(NhalPinMock::instance(), nhal_pin_get_state(testing::_, testing::_))
+            .Times(testing::AnyNumber())
+            .WillRepeatedly([this](struct nhal_pin_context * ctx, nhal_pin_state_t* state){
+                *state = NHAL_PIN_HIGH;  // Default to HIGH
+                return NHAL_OK;
+            });
+
         // Initialize handle for timing tests
-        dht11_init(&handle, &pin_ctx);
+        pin_ctx = (struct nhal_pin_context*)0x1000;
+        dht11_init(&handle, pin_ctx);
     }
 
     dht11_handle_t handle;
-    struct nhal_pin_context pin_ctx;
+    struct nhal_pin_context *pin_ctx;
     dht11_raw_data_t raw_data;
     dht11_reading_t reading;
+    uint32_t mock_time_ms;
+    uint64_t mock_time_us;
 };
 
 // Test dht11_verify_checksum function
@@ -32,9 +92,9 @@ TEST_F(DHT11UtilsTest, VerifyChecksumWithValidData) {
     raw_data.temperature_integer = 25;
     raw_data.temperature_decimal = 0;
     raw_data.checksum = 80;  // 55 + 0 + 25 + 0 = 80
-    
+
     bool result = dht11_verify_checksum(&raw_data);
-    
+
     EXPECT_TRUE(result);
 }
 
@@ -45,15 +105,15 @@ TEST_F(DHT11UtilsTest, VerifyChecksumWithInvalidData) {
     raw_data.temperature_integer = 25;
     raw_data.temperature_decimal = 0;
     raw_data.checksum = 99;  // Should be 80, not 99
-    
+
     bool result = dht11_verify_checksum(&raw_data);
-    
+
     EXPECT_FALSE(result);
 }
 
 TEST_F(DHT11UtilsTest, VerifyChecksumWithNullPointer) {
     bool result = dht11_verify_checksum(nullptr);
-    
+
     EXPECT_FALSE(result);
 }
 
@@ -64,9 +124,9 @@ TEST_F(DHT11UtilsTest, VerifyChecksumWithComplexData) {
     raw_data.temperature_integer = 23;
     raw_data.temperature_decimal = 8;
     raw_data.checksum = 96;  // 60 + 5 + 23 + 8 = 96
-    
+
     bool result = dht11_verify_checksum(&raw_data);
-    
+
     EXPECT_TRUE(result);
 }
 
@@ -77,9 +137,9 @@ TEST_F(DHT11UtilsTest, VerifyChecksumWithOverflowData) {
     raw_data.temperature_integer = 255;
     raw_data.temperature_decimal = 255;
     raw_data.checksum = (255 + 255 + 255 + 255) & 0xFF;  // Handle overflow
-    
+
     bool result = dht11_verify_checksum(&raw_data);
-    
+
     EXPECT_TRUE(result);
 }
 
@@ -90,9 +150,9 @@ TEST_F(DHT11UtilsTest, ConvertRawToReadingWithValidData) {
     raw_data.temperature_integer = 25;
     raw_data.temperature_decimal = 7;
     raw_data.checksum = 55 + 3 + 25 + 7; // 90
-    
+
     dht11_result_t result = dht11_convert_raw_to_reading(&raw_data, &reading);
-    
+
     EXPECT_EQ(result, DHT11_OK);
     EXPECT_FLOAT_EQ(reading.humidity, 55.3f);
     EXPECT_FLOAT_EQ(reading.temperature, 25.7f);
@@ -104,9 +164,9 @@ TEST_F(DHT11UtilsTest, ConvertRawToReadingWithZeroValues) {
     raw_data.temperature_integer = 0;
     raw_data.temperature_decimal = 0;
     raw_data.checksum = 0 + 0 + 0 + 0; // 0
-    
+
     dht11_result_t result = dht11_convert_raw_to_reading(&raw_data, &reading);
-    
+
     EXPECT_EQ(result, DHT11_OK);
     EXPECT_FLOAT_EQ(reading.humidity, 0.0f);
     EXPECT_FLOAT_EQ(reading.temperature, 0.0f);
@@ -119,9 +179,9 @@ TEST_F(DHT11UtilsTest, ConvertRawToReadingWithMaxValues) {
     raw_data.temperature_integer = 50;
     raw_data.temperature_decimal = 0;
     raw_data.checksum = 80 + 0 + 50 + 0; // 130
-    
+
     dht11_result_t result = dht11_convert_raw_to_reading(&raw_data, &reading);
-    
+
     EXPECT_EQ(result, DHT11_OK);
     EXPECT_FLOAT_EQ(reading.humidity, 80.0f);
     EXPECT_FLOAT_EQ(reading.temperature, 50.0f);
@@ -129,13 +189,13 @@ TEST_F(DHT11UtilsTest, ConvertRawToReadingWithMaxValues) {
 
 TEST_F(DHT11UtilsTest, ConvertRawToReadingWithNullRawData) {
     dht11_result_t result = dht11_convert_raw_to_reading(nullptr, &reading);
-    
+
     EXPECT_EQ(result, DHT11_ERR_INVALID_ARG);
 }
 
 TEST_F(DHT11UtilsTest, ConvertRawToReadingWithNullReading) {
     dht11_result_t result = dht11_convert_raw_to_reading(&raw_data, nullptr);
-    
+
     EXPECT_EQ(result, DHT11_ERR_INVALID_ARG);
 }
 
@@ -146,9 +206,9 @@ TEST_F(DHT11UtilsTest, ConvertRawToReadingWithInvalidHumidity) {
     raw_data.temperature_integer = 25;
     raw_data.temperature_decimal = 0;
     raw_data.checksum = 101 + 0 + 25 + 0; // 126
-    
+
     dht11_result_t result = dht11_convert_raw_to_reading(&raw_data, &reading);
-    
+
     EXPECT_EQ(result, DHT11_ERR_INVALID_DATA);
 }
 
@@ -159,40 +219,80 @@ TEST_F(DHT11UtilsTest, ConvertRawToReadingWithInvalidTemperature) {
     raw_data.temperature_integer = 100;  // Too high for DHT11
     raw_data.temperature_decimal = 0;
     raw_data.checksum = 50 + 0 + 100 + 0; // 150
-    
+
     dht11_result_t result = dht11_convert_raw_to_reading(&raw_data, &reading);
-    
+
     EXPECT_EQ(result, DHT11_ERR_INVALID_DATA);
 }
 
-// Test dht11_is_ready_for_reading function
+// Test dht11_is_ready_for_reading function with timing mock understanding
 TEST_F(DHT11UtilsTest, IsReadyForReadingWithNullHandle) {
     bool result = dht11_is_ready_for_reading(nullptr);
-    
+
     EXPECT_FALSE(result);
 }
 
 TEST_F(DHT11UtilsTest, IsReadyForReadingImmediatelyAfterInit) {
-    // Just initialized, should be ready for first reading
-    // With our mock timing (starts at 10ms, increments by 1ms), 
-    // and last_reading_time_ms = 0, we get 10-0 = 10ms elapsed
-    // Since 10ms < 2000ms required, it should return false
+
+    EXPECT_CALL(NhalCommonMock::instance(), nhal_get_timestamp_milliseconds())
+        .WillOnce(Return(5)); // Time difference:  > 2000ms )
     bool result = dht11_is_ready_for_reading(&handle);
-    
-    EXPECT_FALSE(result); // Changed expectation to match actual driver behavior with mock
+
+    EXPECT_FALSE(result);
 }
 
-TEST_F(DHT11UtilsTest, IsReadyForReadingAfterRecentReading) {
-    // Simulate a recent reading (this test depends on implementation details)
-    handle.last_reading_time_ms = 1000;  // Some recent time
-    
-    // This test would need to mock the current time function
-    // The result depends on how the timing is implemented
-    // For now, we just test the function doesn't crash
+TEST_F(DHT11UtilsTest, IsReadyForReadingTooSoon) {
+    handle.last_reading_time_ms = 1000;
+    EXPECT_CALL(NhalCommonMock::instance(), nhal_get_timestamp_milliseconds())
+        .WillOnce(Return(1100)); // Time difference:  100ms < 2000ms )
+
     bool result = dht11_is_ready_for_reading(&handle);
-    
-    // The actual behavior depends on the timing implementation
-    // In a real scenario, you'd mock the time function to control this
+
+    // Should return false since not enough time has passed
+    EXPECT_FALSE(result);
+}
+
+TEST_F(DHT11UtilsTest, IsReadyForReadingAfterEnoughTime) {
+    // Set last reading time to 0 to ensure maximum elapsed time
+    // This tests the edge case where elapsed time might be large
+    handle.last_reading_time_ms = 0;
+    uint16_t emulated_timestamp = 1100;
+
+    // Make multiple calls to advance mock time significantly
+    for (int i = 0; i < 21; i++) {
+        emulated_timestamp += 100; // Adds +100ms per iteration (2100ms total at the end)
+        EXPECT_CALL(NhalCommonMock::instance(), nhal_get_timestamp_milliseconds())
+            .WillOnce(Return(emulated_timestamp));
+        dht11_is_ready_for_reading(&handle);
+    }
+
+    // Now test - depending on how much time has "elapsed" in our mock
+    emulated_timestamp += 100;
+    EXPECT_CALL(NhalCommonMock::instance(), nhal_get_timestamp_milliseconds())
+        .WillOnce(Return(emulated_timestamp));
+    bool result = dht11_is_ready_for_reading(&handle);
+
+    EXPECT_TRUE(result);
+}
+
+TEST_F(DHT11UtilsTest, IsReadyForReadingDifferentDriverInstances) {
+    // Test the timing logic more directly by controlling the values
+
+    // Test case 1: last_reading_time_ms is much larger than current time (wraparound case)
+    handle.last_reading_time_ms = UINT32_MAX - 100;  // Very large value
+    EXPECT_CALL(NhalCommonMock::instance(), nhal_get_timestamp_milliseconds())
+        .WillOnce(Return(2000)); // Time difference: (2000 - (UINT32_MAX - 100) > 2000ms )
+    bool result1 = dht11_is_ready_for_reading(&handle);
+
+    EXPECT_TRUE(result1);
+
+    // Test case 2: Normal case with reasonable values
+    handle.last_reading_time_ms = 5;  // Small value
+    EXPECT_CALL(NhalCommonMock::instance(), nhal_get_timestamp_milliseconds())
+        .WillOnce(Return(500)); // Time difference: (500 - 5 < 2000ms )
+    bool result2 = dht11_is_ready_for_reading(&handle);
+
+    EXPECT_FALSE(result2);
 }
 
 // Integration test combining multiple functions
@@ -203,11 +303,11 @@ TEST_F(DHT11UtilsTest, EndToEndDataProcessingValid) {
     raw_data.temperature_integer = 22;
     raw_data.temperature_decimal = 3;
     raw_data.checksum = 75;  // 45 + 5 + 22 + 3 = 75
-    
+
     // Verify checksum
     bool checksum_valid = dht11_verify_checksum(&raw_data);
     EXPECT_TRUE(checksum_valid);
-    
+
     // Convert to reading
     dht11_result_t convert_result = dht11_convert_raw_to_reading(&raw_data, &reading);
     EXPECT_EQ(convert_result, DHT11_OK);
@@ -222,11 +322,11 @@ TEST_F(DHT11UtilsTest, EndToEndDataProcessingInvalidChecksum) {
     raw_data.temperature_integer = 22;
     raw_data.temperature_decimal = 3;
     raw_data.checksum = 99;  // Wrong checksum
-    
+
     // Verify checksum should fail
     bool checksum_valid = dht11_verify_checksum(&raw_data);
     EXPECT_FALSE(checksum_valid);
-    
+
     // Conversion should fail because checksum validation is done first
     dht11_result_t convert_result = dht11_convert_raw_to_reading(&raw_data, &reading);
     EXPECT_EQ(convert_result, DHT11_ERR_CHECKSUM);
