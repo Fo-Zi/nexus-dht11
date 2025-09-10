@@ -1,6 +1,6 @@
 ![GitHub License](https://img.shields.io/github/license/Fo-Zi/nexus-dht11?color=lightgrey)
 ![GitHub Release](https://img.shields.io/github/v/release/Fo-Zi/nexus-dht11?color=brightgreen)
-[![CI](https://github.com/fo-zi/nexus-dht11/workflows/DHT11%20Driver%20CI/badge.svg)](https://github.com/fo-zi/nexus-dht11/actions)
+[![CI](https://github.com/Fo-Zi/nexus-dht11/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Fo-Zi/nexus-dht11/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/fo-zi/nexus-dht11/branch/main/graph/badge.svg)](https://codecov.io/gh/fo-zi/nexus-dht11)
 [![Dependency](https://img.shields.io/badge/depends%20on-nexus--hal--interface%20v0.6.0-orange)](https://github.com/Fo-Zi/nexus-hal-interface/tree/v0.6.0)
 
