@@ -79,7 +79,8 @@ jobs:
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
-          file: ./dht11-driver/tests/build-coverage/coverage/coverage.info
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./dht11-driver/tests/build-coverage/coverage/coverage.info
           flags: unittests
           name: dht11-coverage
           fail_ci_if_error: true
