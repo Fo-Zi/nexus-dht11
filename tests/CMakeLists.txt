@@ -100,7 +100,7 @@ if(ENABLE_COVERAGE)
             # Capture coverage data (ignore C++ template issues)
             COMMAND ${LCOV_PATH} --directory . --capture --output-file ${COVERAGE_DIR}/coverage.info --quiet --ignore-errors mismatch,gcov
             # Filter out system and test files
-            COMMAND ${LCOV_PATH} --remove ${COVERAGE_DIR}/coverage.info '/usr/*' '*/tests/*' '*/gtest/*' '*/gmock/*' --output-file ${COVERAGE_DIR}/coverage.info --quiet --ignore-errors unused
+            COMMAND ${LCOV_PATH} --remove ${COVERAGE_DIR}/coverage.info '/usr/*' '*/tests/*' '*/hal-interface/testing/gtest_mocks/*' --output-file ${COVERAGE_DIR}/coverage.info --quiet
             # Generate HTML report
             COMMAND ${GENHTML_PATH} --demangle-cpp -o ${COVERAGE_DIR}/html ${COVERAGE_DIR}/coverage.info --quiet
             # Show summary

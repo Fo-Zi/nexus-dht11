@@ -331,3 +331,127 @@ TEST_F(DHT11UtilsTest, EndToEndDataProcessingInvalidChecksum) {
     dht11_result_t convert_result = dht11_convert_raw_to_reading(&raw_data, &reading);
     EXPECT_EQ(convert_result, DHT11_ERR_CHECKSUM);
 }
+
+// Additional tests to improve coverage of edge cases and utility functions
+TEST_F(DHT11UtilsTest, IsReadyForReadingWithTimestampWraparound) {
+    // Test edge case where current timestamp is smaller than last reading time
+    // This happens when timestamp wraps around (overflow)
+    handle.last_reading_time_ms = UINT32_MAX - 1000;  // Very large value
+    
+    EXPECT_CALL(NhalCommonMock::instance(), nhal_get_timestamp_milliseconds())
+        .WillOnce(Return(1500)); // Small value after wraparound
+    
+    bool result = dht11_is_ready_for_reading(&handle);
+    
+    // Time difference with unsigned wraparound:
+    // 1500 - (UINT32_MAX - 1000) = 1500 - 4294966295 
+    // In unsigned arithmetic: 1500 + 1000 + 1 = 2501ms > 2000ms
+    // Should be ready for reading
+    EXPECT_TRUE(result);
+}
+
+TEST_F(DHT11UtilsTest, IsReadyForReadingExactMinimumWaitTime) {
+    // Test exact boundary condition
+    handle.last_reading_time_ms = 1000;
+    
+    EXPECT_CALL(NhalCommonMock::instance(), nhal_get_timestamp_milliseconds())
+        .WillOnce(Return(3000)); // Exactly 2000ms difference
+    
+    bool result = dht11_is_ready_for_reading(&handle);
+    
+    // Should be ready (>= 2000ms)
+    EXPECT_TRUE(result);
+}
+
+TEST_F(DHT11UtilsTest, ConvertRawToReadingWithValidBoundaryHumidity) {
+    // Test DHT11 valid humidity boundary (100% should be valid)
+    raw_data.humidity_integer = 100;  
+    raw_data.humidity_decimal = 0;
+    raw_data.temperature_integer = 25;
+    raw_data.temperature_decimal = 0;
+    raw_data.checksum = 125;
+    
+    dht11_result_t result = dht11_convert_raw_to_reading(&raw_data, &reading);
+    
+    EXPECT_EQ(result, DHT11_OK);  // 100% humidity should be valid
+    EXPECT_FLOAT_EQ(reading.humidity, 100.0f);
+}
+
+TEST_F(DHT11UtilsTest, ConvertRawToReadingWithInvalidHighHumidity) {
+    // Test DHT11 invalid high humidity (>100%)
+    raw_data.humidity_integer = 110;  // Invalid - exceeds 100%
+    raw_data.humidity_decimal = 0;
+    raw_data.temperature_integer = 25;
+    raw_data.temperature_decimal = 0;
+    raw_data.checksum = 135;
+    
+    dht11_result_t result = dht11_convert_raw_to_reading(&raw_data, &reading);
+    
+    EXPECT_EQ(result, DHT11_ERR_INVALID_DATA);  // Should exceed valid range
+}
+
+TEST_F(DHT11UtilsTest, ConvertRawToReadingWithValidBoundaryTemperature) {
+    // Test DHT11 valid temperature boundary (80°C should be valid)
+    raw_data.humidity_integer = 50;
+    raw_data.humidity_decimal = 0;
+    raw_data.temperature_integer = 80;  // Max valid temperature
+    raw_data.temperature_decimal = 0;
+    raw_data.checksum = 130;
+    
+    dht11_result_t result = dht11_convert_raw_to_reading(&raw_data, &reading);
+    
+    EXPECT_EQ(result, DHT11_OK);  // 80°C should be valid
+    EXPECT_FLOAT_EQ(reading.temperature, 80.0f);
+}
+
+TEST_F(DHT11UtilsTest, ConvertRawToReadingWithInvalidHighTemperature) {
+    // Test DHT11 invalid high temperature (>80°C)
+    raw_data.humidity_integer = 50;
+    raw_data.humidity_decimal = 0;
+    raw_data.temperature_integer = 90;  // Invalid - exceeds 80°C
+    raw_data.temperature_decimal = 0;
+    raw_data.checksum = 140;
+    
+    dht11_result_t result = dht11_convert_raw_to_reading(&raw_data, &reading);
+    
+    EXPECT_EQ(result, DHT11_ERR_INVALID_DATA);  // Should exceed valid range
+}
+
+TEST_F(DHT11UtilsTest, ConvertRawToReadingWithNegativeTemperature) {
+    // Test negative temperature (should be invalid for DHT11)
+    raw_data.humidity_integer = 50;
+    raw_data.humidity_decimal = 0;
+    raw_data.temperature_integer = 255;  // Interpreted as negative
+    raw_data.temperature_decimal = 0;
+    raw_data.checksum = (50 + 0 + 255 + 0) & 0xFF;  // Wrap checksum
+    
+    dht11_result_t result = dht11_convert_raw_to_reading(&raw_data, &reading);
+    
+    EXPECT_EQ(result, DHT11_ERR_INVALID_DATA);
+}
+
+TEST_F(DHT11UtilsTest, VerifyChecksumWithAllZeros) {
+    // Edge case with all zero data
+    raw_data.humidity_integer = 0;
+    raw_data.humidity_decimal = 0;
+    raw_data.temperature_integer = 0;
+    raw_data.temperature_decimal = 0;
+    raw_data.checksum = 0;
+    
+    bool result = dht11_verify_checksum(&raw_data);
+    
+    EXPECT_TRUE(result);
+}
+
+TEST_F(DHT11UtilsTest, VerifyChecksumWithMaxValues) {
+    // Edge case with maximum possible values
+    raw_data.humidity_integer = 255;
+    raw_data.humidity_decimal = 255;
+    raw_data.temperature_integer = 255;
+    raw_data.temperature_decimal = 255;
+    raw_data.checksum = (255 + 255 + 255 + 255) & 0xFF;  // Should wrap to 252
+    
+    bool result = dht11_verify_checksum(&raw_data);
+    
+    EXPECT_TRUE(result);
+}
