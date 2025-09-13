@@ -88,12 +88,6 @@ if(ENABLE_COVERAGE)
         # Setup coverage directory
         set(COVERAGE_DIR ${CMAKE_BINARY_DIR}/coverage)
 
-        # Detect if lcov supports --ignore-errors
-        execute_process(
-            COMMAND ${LCOV_PATH} --help
-            OUTPUT_VARIABLE LCOV_HELP
-        )
-
         set(LCOV_IGNORE "")
 
         add_custom_target(coverage
@@ -104,7 +98,7 @@ if(ENABLE_COVERAGE)
             # Run tests
             COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
             # Capture coverage data
-            COMMAND ${LCOV_PATH} --directory . --capture --output-file ${COVERAGE_DIR}/coverage.info --quiet ${LCOV_IGNORE}
+            COMMAND ${LCOV_PATH} --directory . --capture --output-file ${COVERAGE_DIR}/coverage.info --quiet
             # Filter out system and test files
             COMMAND ${LCOV_PATH} --remove ${COVERAGE_DIR}/coverage.info '/usr/*' '*/tests/*' '*/hal-interface/testing/gtest_mocks/*' --output-file ${COVERAGE_DIR}/coverage.info --quiet
             # Generate HTML report
