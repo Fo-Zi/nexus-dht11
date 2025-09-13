@@ -43,7 +43,7 @@ static bool validate_dht11_response(struct nhal_pin_context *pin_ctx)
         return false;
     }
 
-    // Measure DHT11 response high pulse (should be ~80μs)  
+    // Measure DHT11 response high pulse (should be ~80μs)
     high_duration = measure_pulse_duration(pin_ctx, NHAL_PIN_HIGH, DHT11_RESPONSE_TIMEOUT_US);
     if (high_duration == 0 || high_duration < 60 || high_duration > 100) {
         return false;
@@ -84,7 +84,7 @@ static uint32_t measure_pulse_duration(struct nhal_pin_context *pin_ctx, nhal_pi
     }
 
     end_time = nhal_get_timestamp_microseconds();
-    
+
     // Handle timer overflow safely
     if (end_time >= start_time) {
         return (end_time - start_time);
@@ -183,7 +183,7 @@ dht11_result_t dht11_read_raw(dht11_handle_t *handle, dht11_raw_data_t *raw_data
 
     // Step 1: Send start signal
     // Pin is already configured as output from initialization
-    
+
     // Pull low for 18ms
     nhal_result_t pin_result = nhal_pin_set_state(handle->pin_ctx, NHAL_PIN_LOW);
     if (pin_result != NHAL_OK) {
