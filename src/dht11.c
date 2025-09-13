@@ -6,8 +6,6 @@
 #include "dht11.h"
 #include <string.h>
 
-static uint32_t measure_pulse_duration(struct nhal_pin_context *pin_ctx, nhal_pin_state_t pulse_state, uint32_t timeout_us);
-
 
 static bool wait_for_pin_state(struct nhal_pin_context *pin_ctx, nhal_pin_state_t expected_state, uint32_t timeout_us)
 {
@@ -33,43 +31,10 @@ static bool wait_for_pin_state(struct nhal_pin_context *pin_ctx, nhal_pin_state_
 }
 
 
-static bool validate_dht11_response(struct nhal_pin_context *pin_ctx)
-{
-    uint32_t low_duration, high_duration;
-
-    // Measure DHT11 response low pulse (should be ~80μs)
-    low_duration = measure_pulse_duration(pin_ctx, NHAL_PIN_LOW, DHT11_RESPONSE_TIMEOUT_US);
-    if (low_duration == 0 || low_duration < 60 || low_duration > 100) {
-        return false;
-    }
-
-    // Measure DHT11 response high pulse (should be ~80μs)
-    high_duration = measure_pulse_duration(pin_ctx, NHAL_PIN_HIGH, DHT11_RESPONSE_TIMEOUT_US);
-    if (high_duration == 0 || high_duration < 60 || high_duration > 100) {
-        return false;
-    }
-
-    return true;
-}
-
 static uint32_t measure_pulse_duration(struct nhal_pin_context *pin_ctx, nhal_pin_state_t pulse_state, uint32_t timeout_us)
 {
     uint32_t start_time, end_time;
-    nhal_pin_state_t current_state;
-    nhal_pin_state_t opposite_state = (pulse_state == NHAL_PIN_HIGH) ? NHAL_PIN_LOW : NHAL_PIN_HIGH;
 
-    // First ensure we're in the opposite state (pulse not yet started)
-    nhal_result_t result = nhal_pin_get_state(pin_ctx, &current_state);
-    if (result != NHAL_OK) {
-        return 0;
-    }
-
-    // If already in pulse state, wait for it to end first
-    if (current_state == pulse_state) {
-        if (!wait_for_pin_state(pin_ctx, opposite_state, timeout_us)) {
-            return 0;
-        }
-    }
 
     // Wait for pulse to start
     if (!wait_for_pin_state(pin_ctx, pulse_state, timeout_us)) {
@@ -79,19 +44,14 @@ static uint32_t measure_pulse_duration(struct nhal_pin_context *pin_ctx, nhal_pi
     start_time = nhal_get_timestamp_microseconds();
 
     // Wait for pulse to end
+    nhal_pin_state_t opposite_state = (pulse_state == NHAL_PIN_HIGH) ? NHAL_PIN_LOW : NHAL_PIN_HIGH;
     if (!wait_for_pin_state(pin_ctx, opposite_state, timeout_us)) {
         return 0;
     }
 
     end_time = nhal_get_timestamp_microseconds();
-
-    // Handle timer overflow safely
-    if (end_time >= start_time) {
-        return (end_time - start_time);
-    } else {
-        // Timer wrapped around - calculate duration accounting for overflow
-        return (UINT32_MAX - start_time + end_time + 1);
-    }
+    uint32_t duration = (uint32_t)(end_time - start_time);
+    return duration;
 }
 
 
@@ -182,10 +142,13 @@ dht11_result_t dht11_read_raw(dht11_handle_t *handle, dht11_raw_data_t *raw_data
     uint8_t data_bytes[DHT11_DATA_BYTES] = {0};
 
     // Step 1: Send start signal
-    // Pin is already configured as output from initialization
+    nhal_result_t pin_result = nhal_pin_set_direction(handle->pin_ctx, NHAL_PIN_DIR_OUTPUT, NHAL_PIN_PMODE_PULL_UP);
+    if (pin_result != NHAL_OK) {
+        return DHT11_ERR_PIN_ERROR;
+    }
 
     // Pull low for 18ms
-    nhal_result_t pin_result = nhal_pin_set_state(handle->pin_ctx, NHAL_PIN_LOW);
+    pin_result = nhal_pin_set_state(handle->pin_ctx, NHAL_PIN_LOW);
     if (pin_result != NHAL_OK) {
         return DHT11_ERR_PIN_ERROR;
     }
@@ -204,8 +167,13 @@ dht11_result_t dht11_read_raw(dht11_handle_t *handle, dht11_raw_data_t *raw_data
         return DHT11_ERR_PIN_ERROR;
     }
 
-    // Validate DHT11 response signal timing
-    if (!validate_dht11_response(handle->pin_ctx)) {
+    // Wait for DHT11 to pull low (response signal)
+    if (!wait_for_pin_state(handle->pin_ctx, NHAL_PIN_LOW, DHT11_TIMEOUT_US)) {
+        return DHT11_ERR_NO_RESPONSE;
+    }
+
+    // Wait for DHT11 to pull high (preparation for data transmission)
+    if (!wait_for_pin_state(handle->pin_ctx, NHAL_PIN_HIGH, DHT11_TIMEOUT_US)) {
         return DHT11_ERR_NO_RESPONSE;
     }
 
@@ -213,12 +181,12 @@ dht11_result_t dht11_read_raw(dht11_handle_t *handle, dht11_raw_data_t *raw_data
     for (int byte_idx = 0; byte_idx < DHT11_DATA_BYTES; byte_idx++) {
         for (int bit_idx = 7; bit_idx >= 0; bit_idx--) {
             // Wait for bit transmission to start (low signal)
-            if (!wait_for_pin_state(handle->pin_ctx, NHAL_PIN_LOW, DHT11_BIT_TIMEOUT_US)) {
+            if (!wait_for_pin_state(handle->pin_ctx, NHAL_PIN_LOW, DHT11_TIMEOUT_US)) {
                 return DHT11_ERR_TIMEOUT;
             }
 
             // Measure the high pulse duration to determine bit value
-            uint32_t high_duration = measure_pulse_duration(handle->pin_ctx, NHAL_PIN_HIGH, DHT11_BIT_TIMEOUT_US);
+            uint32_t high_duration = measure_pulse_duration(handle->pin_ctx, NHAL_PIN_HIGH, DHT11_TIMEOUT_US);
             if (high_duration == 0) {
                 return DHT11_ERR_TIMEOUT;
             }
@@ -237,13 +205,13 @@ dht11_result_t dht11_read_raw(dht11_handle_t *handle, dht11_raw_data_t *raw_data
     raw_data->temperature_decimal = data_bytes[3];
     raw_data->checksum = data_bytes[4];
 
-    // Verify checksum before updating timestamp
+    // Update last reading time
+    handle->last_reading_time_ms = nhal_get_timestamp_milliseconds();
+
+    // Verify checksum
     if (!dht11_verify_checksum(raw_data)) {
         return DHT11_ERR_CHECKSUM;
     }
-
-    // Update last reading time only after successful validation
-    handle->last_reading_time_ms = nhal_get_timestamp_milliseconds();
 
     return DHT11_OK;
 }
